@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hải Phòng 36 - Quản lý vận tải</title>
+    <style>
+        :root {
+            --primary: #e67e22;
+            --secondary: #2c3e50;
+            --light: #f8f9fa;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            background-color: #eee;
+            color: #333;
+        }
+        .header {
+            background: var(--primary);
+            color: white;
+            text-align: center;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 900px;
+            margin: -30px auto 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            background: var(--light);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--primary);
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th {
+            background: var(--secondary);
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        tr:nth-child(even) { background: #fafafa; }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+            font-style: italic;
+        }
+        .error-msg {
+            color: #d9534f;
+            text-align: center;
+            padding: 20px;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #777;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Hệ Thống Hải Phòng 36</h1>
+    <p>Thông tin giá vé và lịch trình xe khách</p>
+</div>
+
+<div class="container">
+    <div class="stats">
+        <span>Trạng thái: <span id="status" style="color: orange;">Đang khởi tạo...</span></span>
+        <span>IP của bạn: <span id="user-ip">...</span></span>
+    </div>
+
+    <div id="data-content">
+        <div class="loading">Đang tải dữ liệu từ Google Sheets...</div>
+    </div>
+</div>
+
+<footer>
+    &copy; 2024 Hải Phòng 36. Dữ liệu được cập nhật tự động qua Google Sheet.
+</footer>
+
+<script>
+    // ============================================================
+    // CẤU HÌNH: THAY LINK WEB APP APPS SCRIPT CỦA BẠN VÀO ĐÂY
+    // ============================================================
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzbMRScrcmFTCIkYOhE6A67KVHDoclGh5YgK03-eZAA2yg_8fUdbJlS3d2FjJOn0Rml/exec";
+
+    async function initialize() {
+        try {
+            // 1. Lấy IP người dùng (để hiển thị và lưu log)
+            const ipResponse = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipResponse.json();
+            document.getElementById('user-ip').innerText = ipData.ip;
+
+            // 2. Gửi dữ liệu truy cập về Google Sheet (Chạy ngầm POST)
+            await logVisit(ipData.ip);
+
+            // 3. Lấy dữ liệu bảng giá/giờ từ Google Sheet (GET)
+            // Bạn hãy thay "giave" bằng tên Tab Sheet muốn hiển thị
+            await fetchData("giave"); 
+            
+        } catch (err) {
+            console.error(err);
+            document.getElementById('status').innerText = "Lỗi hệ thống";
+        }
+    }
+
+    async function logVisit(ip) {
+        const payload = {
+            ip: ip,
+            browser: navigator.userAgent,
+            device: window.innerWidth < 768 ? "Mobile" : "Desktop"
+        };
+
+        try {
+            // Sử dụng mode 'no-cors' để gửi dữ liệu thành công sang Google Scripts
+            await fetch(SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors",
+                body: JSON.stringify(payload)
+            });
+            document.getElementById('status').innerText = "Đã kết nối";
+            document.getElementById('status').style.color = "green";
+        } catch (e) {
+            document.getElementById('status').innerText = "Ghi log lỗi";
+        }
+    }
+
+    async function fetchData(sheetName) {
+        try {
+            const res = await fetch(`${SCRIPT_URL}?action=readData&sheet=${sheetName}`);
+            const data = await res.json();
+            renderTable(data);
+        } catch (e) {
+            document.getElementById('data-content').innerHTML = `<div class="error-msg">Lỗi tải dữ liệu. Hãy kiểm tra: <br> 1. Quyền chia sẻ Sheet (Bất kỳ ai có liên kết đều xem được). <br> 2. Đã Deploy Apps Script đúng chưa.</div>`;
+        }
+    }
+
+    function renderTable(data) {
+        if (!data || data.length === 0) return;
+
+        let tableHtml = "<table><thead><tr>";
+        // Tạo tiêu đề bảng từ dòng đầu tiên của Sheet
+        data[0].forEach(header => {
+            tableHtml += `<th>${header}</th>`;
+        });
+        tableHtml += "</tr></thead><tbody>";
+
+        // Tạo các dòng dữ liệu từ các dòng tiếp theo
+        for (let i = 1; i < data.length; i++) {
+            tableHtml += "<tr>";
+            data[i].forEach(cell => {
+                tableHtml += `<td>${cell}</td>`;
+            });
+            tableHtml += "</tr>";
+        }
+        tableHtml += "</tbody></table>";
+
+        document.getElementById('data-content').innerHTML = tableHtml;
+    }
+
+    // Chạy khi trang web tải xong
+    window.onload = initialize;
+</script>
+
+</body>
+</html>
