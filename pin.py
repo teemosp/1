@@ -3,7 +3,6 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 from folium.plugins import LocateControl
-import requests
 import math
 import re
 
@@ -24,6 +23,14 @@ iframe {
 """, unsafe_allow_html=True)
 
 st.title("🗺️ VINFAST LIVE MAP")
+
+# ================= CHECK DISTANCE (ĐƯA LÊN ĐẦU) =================
+st.subheader("📏 Check khoảng cách tới trạm")
+
+input_coord = st.text_input(
+    "Nhập tọa độ / link Google Maps / DMS",
+    placeholder="VD: 20.508400,105.770264"
+)
 
 # ================= GOOGLE SHEET =================
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1OfPyNThZAKcaNXo_O1x7lfQnmjBBbRWorpAkJAPUnoQ/export?format=csv&gid=1229149684"
@@ -158,7 +165,6 @@ def extract_coord(text):
         return lat, lon
 
     # ================= DECIMAL =================
-    # 20.508400,105.770264
 
     match = re.search(
         r'(-?\d+\.\d+),\s*(-?\d+\.\d+)',
@@ -173,6 +179,50 @@ def extract_coord(text):
         return lat, lon
 
     return None, None
+
+# ================= CHECK =================
+if st.button("🔍 Check"):
+
+    lat, lon = extract_coord(input_coord)
+
+    if lat is None:
+
+        st.error("❌ Không đọc được tọa độ")
+
+    else:
+
+        result = []
+
+        for _, row in df.iterrows():
+
+            dist = haversine(
+                lat,
+                lon,
+                row["Latitude"],
+                row["Longitude"]
+            )
+
+            result.append({
+                "Tên điểm": row["Ten diem"],
+                "Khoảng cách (m)": int(dist)
+            })
+
+        result_df = pd.DataFrame(result)
+
+        result_df = result_df.sort_values(
+            "Khoảng cách (m)"
+        )
+
+        st.success(
+            f"📍 Gần nhất: "
+            f"{result_df.iloc[0]['Tên điểm']} "
+            f"({result_df.iloc[0]['Khoảng cách (m)']}m)"
+        )
+
+        st.dataframe(
+            result_df.head(20),
+            use_container_width=True
+        )
 
 # ================= MAP CENTER =================
 center_lat = df["Latitude"].mean()
@@ -233,52 +283,10 @@ st_folium(
     height=900
 )
 
-# ================= CHECK DISTANCE =================
-st.subheader("📏 Check khoảng cách")
+# ================= TABLE =================
+st.subheader("📊 Danh sách điểm")
 
-input_coord = st.text_input(
-    "Nhập tọa độ hoặc link Google Maps"
+st.dataframe(
+    df[["STT", "Ten diem", "Toa do"]],
+    use_container_width=True
 )
-
-if st.button("🔍 Check"):
-
-    lat, lon = extract_coord(input_coord)
-
-    if lat is None:
-
-        st.error("❌ Không đọc được tọa độ")
-
-    else:
-
-        result = []
-
-        for _, row in df.iterrows():
-
-            dist = haversine(
-                lat,
-                lon,
-                row["Latitude"],
-                row["Longitude"]
-            )
-
-            result.append({
-                "Tên điểm": row["Ten diem"],
-                "Khoảng cách (m)": int(dist)
-            })
-
-        result_df = pd.DataFrame(result)
-
-        result_df = result_df.sort_values(
-            "Khoảng cách (m)"
-        )
-
-        st.success(
-            f"📍 Gần nhất: "
-            f"{result_df.iloc[0]['Tên điểm']} "
-            f"({result_df.iloc[0]['Khoảng cách (m)']}m)"
-        )
-
-        st.dataframe(
-            result_df.head(20),
-            use_container_width=True
-        )
