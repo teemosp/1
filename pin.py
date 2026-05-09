@@ -1,52 +1,8 @@
-# VINFAST Station Web App (Public + Distance Checker)
 
-## 🚀 Tính năng
-
-### ✅ Web public
-
-* Mọi người có thể truy cập bằng link web
-* Deploy miễn phí bằng Streamlit Cloud
-
-### ✅ Đồng bộ Google Sheet
-
-* Tự lấy dữ liệu từ Google Sheet
-* Tự thêm/xóa điểm theo Sheet
-* Không cần sửa code
-
-### ✅ Hiển thị map
-
-* Full màn hình
-* Marker đánh số
-* Hover hiện tên điểm
-* Có vị trí hiện tại
-* Auto fit toàn bộ điểm
-
-### ✅ Check khoảng cách (KHÔNG thêm vào map)
-
-Người dùng có thể nhập:
-
-* Tọa độ
-* Link Google Maps
-
-→ hệ thống sẽ:
-
-* Tìm điểm gần nhất
-* Tính khoảng cách tới các trạm hiện tại
-* Không lưu vào map
-
----
-
-# 📦 Cài thư viện
-
-```bash
-pip install streamlit pandas folium streamlit-folium requests
-```
-
----
 
 # 📄 app.py
 
-```python
+
 import streamlit as st
 import pandas as pd
 import folium
