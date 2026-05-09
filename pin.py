@@ -1,8 +1,3 @@
-
-
-# 📄 app.py
-
-
 import streamlit as st
 import pandas as pd
 import folium
@@ -14,13 +9,13 @@ import re
 
 st.set_page_config(layout="wide")
 
-# ================= CSS =================
+# ================= CSS FULL SCREEN =================
 st.markdown("""
 <style>
 .block-container {
-    padding: 0;
-    margin: 0;
+    padding: 0rem 1rem;
 }
+
 iframe {
     width: 100% !important;
     height: 95vh !important;
@@ -33,7 +28,7 @@ st.title("🗺️ VINFAST LIVE MAP")
 # ================= GOOGLE SHEET =================
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1OfPyNThZAKcaNXo_O1x7lfQnmjBBbRWorpAkJAPUnoQ/export?format=csv&gid=1229149684"
 
-# ================= LOAD SHEET =================
+# ================= LOAD DATA =================
 @st.cache_data(ttl=30)
 def load_data():
 
@@ -44,20 +39,22 @@ def load_data():
     for idx, row in gs_df.iterrows():
 
         try:
-            ten = str(row.iloc[7]).strip()   # cột H
-            toado = str(row.iloc[14]).strip() # cột O
+            ten = str(row.iloc[7]).strip()     # cột H
+            toado = str(row.iloc[14]).strip()  # cột O
 
             if "," not in toado:
                 continue
 
             coord = toado.replace(" ", "")
+            coord = coord.replace("°", "")
+
             lat, lon = coord.split(",")
 
             lat = float(lat)
             lon = float(lon)
 
             data.append({
-                "STT": len(data)+1,
+                "STT": len(data) + 1,
                 "Ten diem": ten,
                 "Toa do": f"{lat},{lon}",
                 "Latitude": lat,
@@ -69,8 +66,13 @@ def load_data():
 
     return pd.DataFrame(data)
 
-
 df = load_data()
+
+# ================= SAVE CSV =================
+df[["STT", "Ten diem", "Toa do"]].to_csv(
+    "toado.csv",
+    index=False
+)
 
 # ================= DISTANCE =================
 def haversine(lat1, lon1, lat2, lon2):
@@ -83,31 +85,57 @@ def haversine(lat1, lon1, lat2, lon2):
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
 
-    a = math.sin(dphi / 2) ** 2 + \
-        math.cos(phi1) * math.cos(phi2) * \
-        math.sin(dlambda / 2) ** 2
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1)
+        * math.cos(phi2)
+        * math.sin(dlambda / 2) ** 2
+    )
 
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     return R * c
 
-# ================= EXTRACT COORD =================
+# ================= DMS =================
 def dms_to_decimal(degrees, minutes, seconds, direction):
-    decimal = float(degrees) + float(minutes)/60 + float(seconds)/3600
 
-    if direction in ['S', 'W']:
+    decimal = (
+        float(degrees)
+        + float(minutes) / 60
+        + float(seconds) / 3600
+    )
+
+    if direction in ["S", "W"]:
         decimal *= -1
 
     return decimal
 
-
+# ================= EXTRACT COORD =================
 def extract_coord(text):
 
     text = text.strip()
 
+    # ================= VN FORMAT =================
+    # 20,49801° B, 105,75655° Đ
+
+    vn_pattern = r'([0-9,]+)°?\s*[Bb],?\s*([0-9,]+)°?\s*[ĐD]'
+
+    vn_match = re.search(vn_pattern, text)
+
+    if vn_match:
+
+        lat = vn_match.group(1).replace(",", ".")
+        lon = vn_match.group(2).replace(",", ".")
+
+        lat = float(lat)
+        lon = float(lon)
+
+        return lat, lon
+
     # ================= DMS FORMAT =================
-    # Ví dụ: 20°29'32.2\"N 105°46'39.1\"E
-    dms_pattern = r'(\d+)°(\d+)\'(\d+\.?\d*)\"?([NS])\s+(\d+)°(\d+)\'(\d+\.?\d*)\"?([EW])'
+    # 20°29'32.2"N 105°46'39.1"E
+
+    dms_pattern = r'(\d+)°(\d+)\'(\d+\.?\d*)"?([NS])\s+(\d+)°(\d+)\'(\d+\.?\d*)"?([EW])'
 
     dms_match = re.search(dms_pattern, text)
 
@@ -129,13 +157,19 @@ def extract_coord(text):
 
         return lat, lon
 
-    # ================= DECIMAL FORMAT =================
-    # Ví dụ: 20.508400,105.770264
-    match = re.search(r'(-?\d+\.\d+),\s*(-?\d+\.\d+)', text)
+    # ================= DECIMAL =================
+    # 20.508400,105.770264
+
+    match = re.search(
+        r'(-?\d+\.\d+),\s*(-?\d+\.\d+)',
+        text
+    )
 
     if match:
+
         lat = float(match.group(1))
         lon = float(match.group(2))
+
         return lat, lon
 
     return None, None
@@ -152,11 +186,13 @@ m = folium.Map(
     attr="OpenStreetMap"
 )
 
+# ================= LOCATION BUTTON =================
 LocateControl(auto_start=False).add_to(m)
 
-# auto fit
+# ================= FIT ALL POINTS =================
 sw = [df["Latitude"].min(), df["Longitude"].min()]
 ne = [df["Latitude"].max(), df["Longitude"].max()]
+
 m.fit_bounds([sw, ne])
 
 # ================= MARKERS =================
@@ -198,7 +234,7 @@ st_folium(
 )
 
 # ================= CHECK DISTANCE =================
-st.subheader("📏 Check khoảng cách tới trạm")
+st.subheader("📏 Check khoảng cách")
 
 input_coord = st.text_input(
     "Nhập tọa độ hoặc link Google Maps"
@@ -209,6 +245,7 @@ if st.button("🔍 Check"):
     lat, lon = extract_coord(input_coord)
 
     if lat is None:
+
         st.error("❌ Không đọc được tọa độ")
 
     else:
@@ -230,10 +267,18 @@ if st.button("🔍 Check"):
             })
 
         result_df = pd.DataFrame(result)
-        result_df = result_df.sort_values("Khoảng cách (m)")
 
-        st.success(
-            f"📍 Gần nhất: {result_df.iloc[0]['Tên điểm']} ({result_df.iloc[0]['Khoảng cách (m)']}m)"
+        result_df = result_df.sort_values(
+            "Khoảng cách (m)"
         )
 
-        st.dataframe(result_df.head(20), use_container_width=True)
+        st.success(
+            f"📍 Gần nhất: "
+            f"{result_df.iloc[0]['Tên điểm']} "
+            f"({result_df.iloc[0]['Khoảng cách (m)']}m)"
+        )
+
+        st.dataframe(
+            result_df.head(20),
+            use_container_width=True
+        )
